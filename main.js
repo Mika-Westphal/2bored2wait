@@ -1,10 +1,32 @@
-
 // imports
 const mc = require('minecraft-protocol'); // to handle minecraft login session
 const webserver = require('./webserver.js'); // to serve the webserver
 const opn = require('opn'); //to open a browser window
-const secrets = require('./secrets.json'); // read the creds
 const config = require('./config.json'); // read the config
+const fs = require('fs'); // to check if the secrets.json exists
+
+var mc_username;
+var mc_password;
+
+if(fs.existsSync("./secrets.json")) {
+	const secrets = require('./secrets.json');
+	mc_username = secrets.username;
+	mc_password = secrets.password;
+}else {
+	const rl = require("readline").createInterface({
+		input: process.stdin,
+		output: process.stdout
+	});
+	rl.question("Username: ", function(username) {
+		rl.question("Password: ", function(userpassword) {
+			mc_username = username;
+			mc_password = userpassword;
+			for(var i = 0; i < process.stdout.getWindowSize()[1]; i++) {
+				console.log('\n');  // i know it's not the best way to clear a console but i don't know how to do it
+			}
+		});
+	});
+}
 
 webserver.createServer(config.ports.web); // create the webserver
 webserver.password = config.password
@@ -44,8 +66,8 @@ function startQueuing() {
 	client = mc.createClient({ // connect to 2b2t
 		host: "2b2t.org",
 		port: 25565,
-		username: secrets.username,
-		password: secrets.password,
+		username: mc_username,
+		password: mc_password,
 		version: config.MCversion
 	});
 	let finishedQueue = false;
@@ -111,29 +133,31 @@ function startQueuing() {
 	});
 
 	server.on('login', (newProxyClient) => { // handle login
-		newProxyClient.write('login', {
-			entityId: playerId,
-			levelType: 'default',
-			gameMode: 0,
-			dimension: 0,
-			difficulty: 2,
-			maxPlayers: server.maxPlayers,
-			reducedDebugInfo: false
-		});
-		newProxyClient.write('position', {
-			x: 0,
-			y: 1.62,
-			z: 0,
-			yaw: 0,
-			pitch: 0,
-			flags: 0x00
-		});
+		if(newProxyClient.username === client.username) {
+			newProxyClient.write('login', {
+				entityId: playerId,
+				levelType: 'default',
+				gameMode: 0,
+				dimension: 0,
+				difficulty: 2,
+				maxPlayers: server.maxPlayers,
+				reducedDebugInfo: false
+			});
+			newProxyClient.write('position', {
+				x: 0,
+				y: 1.62,
+				z: 0,
+				yaw: 0,
+				pitch: 0,
+				flags: 0x00
+			});
 
-		newProxyClient.on('packet', (data, meta) => { // redirect everything we do to 2b2t
-			filterPacketAndSend(data, meta, client);
-		});
+			newProxyClient.on('packet', (data, meta) => { // redirect everything we do to 2b2t
+				filterPacketAndSend(data, meta, client);
+			});
 
-		proxyClient = newProxyClient;
+			proxyClient = newProxyClient;
+		}
 	});
 }
 
